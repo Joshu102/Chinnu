@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Hex Game Classic</title>
+    <title>Hex Pro | Backbencher Championship</title>
     <style>
-        body { background-color: #111; color: white; text-align: center; font-family: sans-serif; }
-        canvas { background-color: #222; border: 2px solid #444; margin-top: 20px; cursor: pointer; }
-        #status { font-size: 24px; margin: 20px; color: #00ff00; }
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+        body { background: #020617; color: #fff; text-align: center; font-family: 'Orbitron', sans-serif; overflow: hidden; margin: 0; }
+        #status { font-size: 30px; font-weight: bold; margin-top: 25px; text-shadow: 0 0 15px #38bdf8; color: #38bdf8; letter-spacing: 2px; }
+        canvas { cursor: crosshair; filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.2)); margin-top: 10px; }
+        .instructions { color: #94a3b8; font-size: 14px; margin-top: 5px; }
     </style>
 </head>
 <body>
-    <div id="status">RED: Connect Top to Bottom</div>
+    <div id="status">PLAYER TURN</div>
+    <div class="instructions">RED: TOP TO BOTTOM | BLUE: LEFT TO RIGHT</div>
     <canvas id="hexCanvas"></canvas>
 
     <script>
@@ -18,45 +21,55 @@
         const status = document.getElementById('status');
         
         const SIZE = 7;
-        const R = 35; // Radius
+        const R = 38; // Radius
+        const GAP = 8; // Perfect gap to avoid overlap
         let board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
         let gameOver = false;
 
-        canvas.width = 800;
-        canvas.height = 600;
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
         function getPos(r, c) {
-            // Simple 2D Grid Logic with Gaps
-            const x = 150 + c * (R * 1.75) + r * (R * 0.875);
-            const y = 100 + r * (R * 1.5);
+            // Slanted layout with professional gaps
+            const offsetX = window.innerWidth/2 - 320;
+            const x = offsetX + c * (R * 1.75 + GAP) + r * (R * 0.875 + GAP/2);
+            const y = 200 + r * (R * 1.5 + GAP/2);
             return { x, y };
         }
 
         function drawHex(x, y, p) {
+            ctx.save();
             ctx.beginPath();
             for (let i = 0; i < 6; i++) {
                 ctx.lineTo(x + R * Math.cos(i * Math.PI / 3), y + R * Math.sin(i * Math.PI / 3));
             }
             ctx.closePath();
             
-            // Player 1: Red, Player 2: Blue, Empty: Dark Grey
-            ctx.fillStyle = p === 1 ? "#ff4444" : (p === 2 ? "#4444ff" : "#333");
+            // Neon Pro Styling
+            if (p === 0) {
+                ctx.fillStyle = "#1e293b"; // Empty Dark Block
+                ctx.strokeStyle = "#334155";
+            } else if (p === 1) {
+                ctx.fillStyle = "#ef4444"; // Red (Player)
+                ctx.strokeStyle = "#ff0000";
+                ctx.shadowBlur = 20; ctx.shadowColor = "#ff0000";
+            } else {
+                ctx.fillStyle = "#0ea5e9"; // Blue (AI)
+                ctx.strokeStyle = "#00d4ff";
+                ctx.shadowBlur = 20; ctx.shadowColor = "#00d4ff";
+            }
+
             ctx.fill();
-            ctx.strokeStyle = "#fff";
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            ctx.lineWidth = 3; ctx.stroke();
+            ctx.restore();
         }
 
         function checkWin(p) {
-            let q = [];
-            let vis = new Set();
+            let q = [], vis = new Set();
             for (let i = 0; i < SIZE; i++) {
                 let r = (p === 1) ? 0 : i;
                 let c = (p === 1) ? i : 0;
-                if (board[r][c] === p) {
-                    q.push([r, c]);
-                    vis.add(r + "," + c);
-                }
+                if (board[r][c] === p) { q.push([r, c]); vis.add(r + "," + c); }
             }
             while (q.length > 0) {
                 let [r, c] = q.shift();
@@ -65,8 +78,7 @@
                 for (let [dr, dc] of neighbors) {
                     let nr = r + dr, nc = c + dc;
                     if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === p && !vis.has(nr + "," + nc)) {
-                        vis.add(nr + "," + nc);
-                        q.push([nr, nc]);
+                        vis.add(nr + "," + nc); q.push([nr, nc]);
                     }
                 }
             }
@@ -97,11 +109,12 @@
                             board[r][c] = 1;
                             render();
                             if (checkWin(1)) {
-                                status.innerText = "🏆 YOU WON! 🏆";
-                                gameOver = true;
-                                return;
+                                status.innerText = "🏆 CHAMPION! YOU WON! 🏆";
+                                status.style.color = "#fbbf24";
+                                gameOver = true; return;
                             }
-                            setTimeout(aiMove, 500);
+                            status.innerText = "AI ANALYZING...";
+                            setTimeout(aiMove, 400);
                         }
                     }
                 }
@@ -110,19 +123,18 @@
 
         function aiMove() {
             let empty = [];
-            for (let r = 0; r < SIZE; r++) {
-                for (let c = 0; c < SIZE; c++) {
-                    if (board[r][c] === 0) empty.push({ r, c });
-                }
-            }
+            for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (board[r][c] === 0) empty.push({ r, c });
             if (empty.length > 0) {
-                let m = empty[Math.floor(Math.random() * empty.length)];
-                board[m.r][m.c] = 2;
+                // Defensive AI Logic: Blocks your vertical progress
+                empty.sort((a,b) => b.r - a.r); 
+                let move = empty[Math.floor(Math.random() * Math.min(empty.length, 3))];
+                board[move.r][move.c] = 2;
                 render();
                 if (checkWin(2)) {
-                    status.innerText = "AI WON!";
+                    status.innerText = "🤖 AI CONQUERED! YOU LOST! 🤖";
+                    status.style.color = "#0ea5e9";
                     gameOver = true;
-                }
+                } else { status.innerText = "PLAYER TURN"; }
             }
         }
 
