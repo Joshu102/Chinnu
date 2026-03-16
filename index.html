@@ -1,111 +1,182 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Hex 3D Pro | AI Championship</title>
+    <meta charset="UTF-8">
+    <title>3D Hex Championship | Backbencher Pro</title>
     <style>
-        body { background: #020617; color: #fff; text-align: center; font-family: 'Orbitron', sans-serif; overflow: hidden; margin: 0; }
-        #status { font-size: 30px; margin: 20px; font-weight: bold; text-shadow: 0 0 15px #38bdf8; color: #38bdf8; }
-        canvas { cursor: crosshair; filter: drop-shadow(0 0 10px #000); }
+        body { background-color: #020617; color: #fff; text-align: center; font-family: 'Montserrat', sans-serif; overflow: hidden; margin: 0; }
+        #status { font-size: 32px; font-weight: bold; padding: 25px; text-transform: uppercase; letter-spacing: 4px; color: #fbbf24; text-shadow: 0 0 25px #fbbf24; }
+        canvas { outline: none; filter: drop-shadow(0 0 40px rgba(0,0,0,0.8)); }
+        #winMessage { position: absolute; top: 100px; width: 100%; font-size: 40px; font-weight: bold; color: #4ade80; display: none; text-shadow: 0 0 30px #4ade80; }
     </style>
 </head>
 <body>
     <div id="status">RED: CONNECT TOP TO BOTTOM</div>
-    <canvas id="hexCanvas"></canvas>
+    <div id="winMessage">🏆 YOU WON MAMA! 🏆</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        const canvas = document.getElementById('hexCanvas');
-        const ctx = canvas.getContext('2d');
-        const SIZE = 7; const R = 40;
+        // Setup Three.js Scene, Camera, Renderer
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x020617, 10, 80);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.position.set(10, 10, 10);
+        scene.add(pointLight);
+
+        // Constants and Geometry
+        const SIZE = 7;
+        const R = 40; 
+        const GAP = 10;
+        const HEX_RADIUS = 30;
         let board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
         let gameOver = false;
 
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        const hexGeometry = new THREE.CylinderGeometry(HEX_RADIUS, HEX_RADIUS, 15, 6);
+        const hexMaterials = {
+            empty: new THREE.MeshPhongMaterial({ color: #1e293b, shininess: 80, specular: #fff }),
+            player: new THREE.MeshPhongMaterial({ color: #ef4444, shininess: 150, emmissive: #300 }),
+            ai: new THREE.MeshPhongMaterial({ color: #00d4ff, shininess: 150 })
+        };
 
-        function getPos(r, c) {
-            return { x: 350 + c*70 + r*35, y: 150 + r*60 };
+        const hexGroup = new THREE.Group();
+        const hexMeshes = [];
+
+        function getXY(r, c) {
+            const x = c * (HEX_RADIUS * 1.75 + GAP) + r * (HEX_RADIUS * 0.875 + GAP/2);
+            const y = -r * (HEX_RADIUS * 1.5 + GAP/2);
+            return { x, y };
         }
 
-        function drawHex(x, y, p) {
-            ctx.save(); ctx.translate(x, y);
-            // 3D Shadow
-            ctx.beginPath();
-            for(let i=0; i<6; i++) ctx.lineTo((R+2)*Math.cos(i*Math.PI/3), (R+2)*Math.sin(i*Math.PI/3)+6);
-            ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fill();
-
-            // Main Block
-            ctx.beginPath();
-            for(let i=0; i<6; i++) ctx.lineTo(R*Math.cos(i*Math.PI/3), R*Math.sin(i*Math.PI/3));
-            ctx.closePath();
-            
-            let color = p==1 ? "#ff0044" : (p==2 ? "#0088ff" : "#1e293b");
-            let grad = ctx.createRadialGradient(0,0,5,0,0,R);
-            grad.addColorStop(0, color); grad.addColorStop(1, "#000");
-            
-            ctx.fillStyle = grad;
-            ctx.shadowBlur = p!=0 ? 20 : 0; ctx.shadowColor = color;
-            ctx.fill(); ctx.strokeStyle = p!=0 ? color : "#334155";
-            ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
-        }
-
-        function checkWin(p) {
-            let q = [], vis = new Set();
-            for(let i=0; i<SIZE; i++) {
-                let r = p==1 ? 0 : i, c = p==1 ? i : 0;
-                if(board[r][c] == p) { q.push([r,c]); vis.add(r+","+c); }
+        for (let r = 0; r < SIZE; r++) {
+            const rowMeshes = [];
+            for (let c = 0; c < SIZE; c++) {
+                const { x, y } = getXY(r, c);
+                const mesh = new THREE.Mesh(hexGeometry, hexMaterials.empty.clone());
+                mesh.position.set(x, y, 0);
+                mesh.rotation.y = Math.PI / 2; // Smooth perspective view
+                mesh.userData = { r, c };
+                hexGroup.add(mesh);
+                rowMeshes.push(mesh);
             }
-            while(q.length > 0) {
-                let [r,c] = q.shift();
-                if((p==1 && r==SIZE-1) || (p==2 && c==SIZE-1)) return true;
-                for(let [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1],[-1,1],[1,-1]]) {
-                    let nr=r+dr, nc=c+dc;
-                    if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc]==p && !vis.has(nr+","+nc)) {
-                        vis.add(nr+","+nc); q.push([nr,nc]);
+            hexMeshes.push(rowMeshes);
+        }
+
+        // Center the board
+        hexGroup.position.x = -((SIZE-1) * (HEX_RADIUS * 1.75 + GAP) + (SIZE-1) * (HEX_RADIUS * 0.875 + GAP/2))/2;
+        hexGroup.position.y = ((SIZE-1) * (HEX_RADIUS * 1.5 + GAP/2))/2;
+        scene.add(hexGroup);
+
+        camera.position.z = 100;
+
+        // BFS Win Check Logic (Top-to-Bottom)
+        function checkWin(p) {
+            let q = [];
+            let vis = new Set();
+            for (let i = 0; i < SIZE; i++) {
+                let r = (p === 1) ? 0 : i;
+                let c = (p === 1) ? i : 0;
+                if (board[r][c] === p) {
+                    q.push([r, c]);
+                    vis.add(${r},${c});
+                }
+            }
+            while (q.length > 0) {
+                let [r, c] = q.shift();
+                if ((p === 1 && r === SIZE - 1) || (p === 2 && c === SIZE - 1)) return true;
+                const neighbors = [[-1,0],[1,0],[0,-1],[0,1],[-1,1],[1,-1]];
+                for (let [dr, dc] of neighbors) {
+                    let nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === p && !vis.has(${nr},${nc})) {
+                        vis.add(${nr},${nc}); q.push([nr, nc]);
                     }
                 }
             }
             return false;
         }
 
-        function render() {
-            ctx.clearRect(0,0,canvas.width,canvas.height);
-            for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) {
-                let {x,y} = getPos(r,c); drawHex(x,y,board[r][c]);
+        // AI Logic
+        function aiMove() {
+            let empty = [];
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if (board[r][c] === 0) empty.push({ r, c });
+                }
+            }
+            if (empty.length > 0) {
+                let m = empty[Math.floor(Math.random() * empty.length)];
+                board[m.r][m.c] = 2;
+                hexMeshes[m.r][m.c].material.color.set(hexMaterials.ai.color);
+                
+                if (checkWin(2)) {
+                    document.getElementById('status').innerText = "🤖 AI WON MAMA! YOU LOST! 🤖";
+                    document.getElementById('winMessage').innerText = "🤖 AI WON MAMA! YOU LOST! 🤖";
+                    document.getElementById('winMessage').style.display = "block";
+                    gameOver = true;
+                } else {
+                    document.getElementById('status').innerText = "YOUR TURN - CONNECT TOP TO BOTTOM";
+                }
             }
         }
 
-        canvas.onclick = (e) => {
-            if(gameOver) return;
-            const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-            for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) {
-                let {x,y} = getPos(r,c);
-                if(Math.hypot(mx-x, my-y) < R) {
-                    if(board[r][c] == 0) {
-                        board[r][c] = 1; render();
-                        if(checkWin(1)) {
-                            document.getElementById('status').innerText = "🏆 CHAMPION! RED WON! 🏆";
-                            document.getElementById('status').style.color = "#ffdd00";
-                            gameOver = true; return;
-                        }
-                        setTimeout(aiMove, 300);
+        // Mouse Events
+        window.addEventListener('click', (e) => {
+            if (gameOver) return;
+            const mouse = new THREE.Vector2();
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(hexGroup.children);
+
+            if (intersects.length > 0) {
+                const mesh = intersects[0].object;
+                const { r, c } = mesh.userData;
+                if (board[r][c] === 0) {
+                    board[r][c] = 1;
+                    mesh.material.color.set(hexMaterials.player.color);
+                    
+                    if (checkWin(1)) {
+                        document.getElementById('status').innerText = "🏆 CHAMPION! YOU WON! 🏆";
+                        document.getElementById('winMessage').style.display = "block";
+                        gameOver = true;
+                    } else {
+                        document.getElementById('status').innerText = "AI THINKING...";
+                        setTimeout(aiMove, 600);
                     }
                 }
             }
-        };
+        });
 
-        function aiMove() {
-            let empty = [];
-            for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) if(board[r][c]==0) empty.push({r,c});
-            if(empty.length > 0) {
-                let m = empty[Math.floor(Math.random()*empty.length)];
-                board[m.r][m.c] = 2; render();
-                if(checkWin(2)) {
-                    document.getElementById('status').innerText = "🤖 AI WON! BETTER LUCK NEXT TIME!";
-                    gameOver = true;
-                }
+        // Dynamic Camera Rotation
+        let targetRotation = 0;
+        let isMouseDown = false;
+        let lastMouseX = 0;
+
+        window.addEventListener('mousedown', (e) => { isMouseDown = true; lastMouseX = e.clientX; });
+        window.addEventListener('mousemove', (e) => {
+            if (isMouseDown) {
+                const delta = e.clientX - lastMouseX;
+                targetRotation += delta * 0.01;
+                lastMouseX = e.clientX;
             }
+        });
+        window.addEventListener('mouseup', () => isMouseDown = false);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            hexGroup.rotation.y += (targetRotation - hexGroup.rotation.y) * 0.1; // Smooth rotation
+            renderer.render(scene, camera);
         }
-        render();
+        animate();
     </script>
 </body>
 </html>
