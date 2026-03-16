@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Hex 3D Pro - Backbencher Edition</title>
+    <style>
+        body { background: radial-gradient(circle, #0f172a 0%, #020617 100%); color: #f8fafc; text-align: center; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; }
+        #status { font-size: 28px; font-weight: 800; margin: 20px; text-transform: uppercase; letter-spacing: 2px; color: #38bdf8; text-shadow: 0 0 15px #38bdf8; }
+        canvas { filter: drop-shadow(0 0 20px rgba(0,0,0,0.5)); cursor: crosshair; margin-top: 10px; }
+        .controls { position: absolute; bottom: 20px; width: 100%; font-size: 14px; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div id="status">Your Turn - Connect Top to Bottom</div>
+    <canvas id="hexCanvas"></canvas>
+    <div class="controls">7x7 Professional Grid | 3D Rendered Logic</div>
+
+    <script>
+        const canvas = document.getElementById('hexCanvas');
+        const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
+
+        const SIZE = 7;
+        const R = 38; 
+        const GAP = 4;
+        let board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
+        let gameOver = false;
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight - 100;
+
+        function getPos(r, c) {
+            const x = 300 + c * (R * 1.75) + r * (R * 0.875);
+            const y = 150 + r * (R * 1.5);
+            return { x, y };
+        }
+
+        function drawHex(x, y, player) {
+            const sides = 6;
+            ctx.save();
+            ctx.translate(x, y);
+
+            // 3D Shadow/Depth Effect
+            ctx.beginPath();
+            for (let i = 0; i < sides; i++) {
+                const ang = i * Math.PI / 3;
+                ctx.lineTo((R+2) * Math.cos(ang), (R+2) * Math.sin(ang) + 5);
+            }
+            ctx.fillStyle = "rgba(0,0,0,0.4)";
+            ctx.fill();
+
+            // Main Hexagon
+            ctx.beginPath();
+            for (let i = 0; i < sides; i++) {
+                const ang = i * Math.PI / 3;
+                ctx.lineTo(R * Math.cos(ang), R * Math.sin(ang));
+            }
+            ctx.closePath();
+
+            let color = "#1e293b"; // Default Empty
+            if (player === 1) color = "#ef4444"; // Player Red
+            if (player === 2) color = "#0ea5e9"; // AI Blue
+
+            // Gradient for 3D look
+            const grad = ctx.createRadialGradient(0, 0, 5, 0, 0, R);
+            grad.addColorStop(0, color);
+            grad.addColorStop(1, "#020617");
+            
+            ctx.fillStyle = grad;
+            ctx.shadowBlur = player !== 0 ? 25 : 0;
+            ctx.shadowColor = color;
+            ctx.fill();
+            
+            ctx.strokeStyle = player !== 0 ? color : "#334155";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function checkWin(p) {
+            let q = [];
+            let vis = new Set();
+            for (let i = 0; i < SIZE; i++) {
+                let r = (p === 1) ? 0 : i;
+                let c = (p === 1) ? i : 0;
+                if (board[r][c] === p) {
+                    q.push([r, c]);
+                    vis.add(${r},${c});
+                }
+            }
+            while (q.length > 0) {
+                let [r, c] = q.shift();
+                if ((p === 1 && r === SIZE - 1) || (p === 2 && c === SIZE - 1)) return true;
+                const neighbors = [[-1,0],[1,0],[0,-1],[0,1],[-1,1],[1,-1]];
+                for (let [dr, dc] of neighbors) {
+                    let nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === p && !vis.has(${nr},${nc})) {
+                        vis.add(${nr},${nc}); q.push([nr, nc]);
+                    }
+                }
+            }
+            return false;
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Draw Goal Indicators
+            ctx.font = "bold 16px Arial";
+            ctx.fillStyle = "#ef4444"; ctx.fillText("RED ZONE (START)", 400, 80);
+            ctx.fillText("RED ZONE (END)", 600, 580);
+
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const { x, y } = getPos(r, c);
+                    drawHex(x, y, board[r][c]);
+                }
+            }
+        }
+
+        canvas.onclick = (e) => {
+            if (gameOver) return;
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const { x, y } = getPos(r, c);
+                    if (Math.hypot(mx - x, my - y) < R) {
+                        if (board[r][c] === 0) {
+                            board[r][c] = 1;
+                            render();
+                            if (checkWin(1)) {
+                                status.innerText = "🏆 YOU WON! LINE COMPLETE!";
+                                status.style.color = "#fbbf24";
+                                gameOver = true;
+                                return;
+                            }
+                            status.innerText = "AI Thinking...";
+                            setTimeout(aiMove, 400);
+                        }
+                    }
+                }
+            }
+        };
+
+        function aiMove() {
+            let empty = [];
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if (board[r][c] === 0) empty.push({ r, c });
+                }
+            }
+            if (empty.length > 0) {
+                // Priority: Block Player's Vertical Progress
+                empty.sort((a, b) => a.r - b.r); 
+                let move = empty[Math.floor(Math.random() * Math.min(empty.length, 3))];
+                board[move.r][move.c] = 2;
+                render();
+                if (checkWin(2)) {
+                    status.innerText = "🤖 AI WON! YOU BLOCKED!";
+                    status.style.color = "#0ea5e9";
+                    gameOver = true;
+                } else {
+                    status.innerText = "Your Turn";
+                }
+            }
+        }
+        render();
+    </script>
+</body>
+</html>
