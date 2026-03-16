@@ -1,79 +1,72 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Hex 3D Pro | Backbencher Championship</title>
+    <title>Hex Game Classic</title>
     <style>
-        body { background: radial-gradient(circle, #020617, #0f172a); color: #fff; text-align: center; font-family: 'Segoe UI', sans-serif; overflow: hidden; margin: 0; }
-        #status { font-size: 32px; font-weight: 900; padding: 20px; color: #38bdf8; text-shadow: 0 0 20px #38bdf8; }
-        canvas { cursor: pointer; filter: drop-shadow(0 0 40px rgba(0,0,0,0.9)); margin-top: -20px; }
+        body { background-color: #111; color: white; text-align: center; font-family: sans-serif; }
+        canvas { background-color: #222; border: 2px solid #444; margin-top: 20px; cursor: pointer; }
+        #status { font-size: 24px; margin: 20px; color: #00ff00; }
     </style>
 </head>
 <body>
-    <div id="status">RED: CONNECT TOP TO BOTTOM</div>
+    <div id="status">RED: Connect Top to Bottom</div>
     <canvas id="hexCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById('hexCanvas');
         const ctx = canvas.getContext('2d');
         const status = document.getElementById('status');
-        const SIZE = 7; const R = 42; const GAP = 10;
+        
+        const SIZE = 7;
+        const R = 35; // Radius
         let board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
         let gameOver = false;
 
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        canvas.width = 800;
+        canvas.height = 600;
 
         function getPos(r, c) {
-            const x = window.innerWidth/2 - 340 + c * (R * 1.8 + GAP) + r * (R * 0.9 + GAP/2);
-            const y = 240 + r * (R * 1.4 + GAP/2);
+            // Simple 2D Grid Logic with Gaps
+            const x = 150 + c * (R * 1.75) + r * (R * 0.875);
+            const y = 100 + r * (R * 1.5);
             return { x, y };
         }
 
         function drawHex(x, y, p) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.scale(1, 0.75); // 3D Perspective Tilt
-
-            // 1. Shadow/Depth Layer
             ctx.beginPath();
-            for(let i=0; i<6; i++) ctx.lineTo((R+2)*Math.cos(i*Math.PI/3), (R+2)*Math.sin(i*Math.PI/3)+15);
-            ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fill();
-
-            // 2. Side Walls (The 3D Thickness)
-            ctx.beginPath();
-            for(let i=0; i<6; i++) ctx.lineTo(R*Math.cos(i*Math.PI/3), R*Math.sin(i*Math.PI/3)+12);
-            ctx.fillStyle = p==1 ? "#880022" : (p==2 ? "#004488" : "#0f172a");
-            ctx.fill();
-
-            // 3. Top Face
-            ctx.beginPath();
-            for(let i=0; i<6; i++) ctx.lineTo(R*Math.cos(i*Math.PI/3), R*Math.sin(i*Math.PI/3));
+            for (let i = 0; i < 6; i++) {
+                ctx.lineTo(x + R * Math.cos(i * Math.PI / 3), y + R * Math.sin(i * Math.PI / 3));
+            }
             ctx.closePath();
             
-            let color = p==1 ? "#ff0044" : (p==2 ? "#00d4ff" : "#1e293b");
-            let grad = ctx.createRadialGradient(-10, -10, 5, 0, 0, R);
-            grad.addColorStop(0, color); grad.addColorStop(1, "#000");
-            
-            ctx.fillStyle = grad;
-            ctx.shadowBlur = p!=0 ? 40 : 0; ctx.shadowColor = color;
+            // Player 1: Red, Player 2: Blue, Empty: Dark Grey
+            ctx.fillStyle = p === 1 ? "#ff4444" : (p === 2 ? "#4444ff" : "#333");
             ctx.fill();
-            ctx.strokeStyle = p!=0 ? color : "#334155";
-            ctx.lineWidth = 3; ctx.stroke();
-            ctx.restore();
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 2;
+            ctx.stroke();
         }
 
         function checkWin(p) {
-            let q = [], vis = new Set();
-            for(let i=0; i<SIZE; i++) {
-                let r = p==1 ? 0 : i, c = p==1 ? i : 0;
-                if(board[r][c] == p) { q.push([r,c]); vis.add(r+","+c); }
+            let q = [];
+            let vis = new Set();
+            for (let i = 0; i < SIZE; i++) {
+                let r = (p === 1) ? 0 : i;
+                let c = (p === 1) ? i : 0;
+                if (board[r][c] === p) {
+                    q.push([r, c]);
+                    vis.add(r + "," + c);
+                }
             }
-            while(q.length > 0) {
-                let [r,c] = q.shift();
-                if((p==1 && r==SIZE-1) || (p==2 && c==SIZE-1)) return true;
-                for(let [dr,dc] of [[-1,0],[1,0],[0,-1],[0,1],[-1,1],[1,-1]]) {
-                    let nr=r+dr, nc=c+dc;
-                    if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc]==p && !vis.has(nr+","+nc)) {
-                        vis.add(nr+","+nc); q.push([nr,nc]);
+            while (q.length > 0) {
+                let [r, c] = q.shift();
+                if ((p === 1 && r === SIZE - 1) || (p === 2 && c === SIZE - 1)) return true;
+                const neighbors = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, 1], [1, -1]];
+                for (let [dr, dc] of neighbors) {
+                    let nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === p && !vis.has(nr + "," + nc)) {
+                        vis.add(nr + "," + nc);
+                        q.push([nr, nc]);
                     }
                 }
             }
@@ -81,28 +74,35 @@
         }
 
         function render() {
-            ctx.clearRect(0,0,canvas.width,canvas.height);
-            for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) {
-                let {x,y} = getPos(r,c); drawHex(x,y,board[r][c]);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const { x, y } = getPos(r, c);
+                    drawHex(x, y, board[r][c]);
+                }
             }
         }
 
         canvas.onclick = (e) => {
-            if(gameOver) return;
+            if (gameOver) return;
             const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-            for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) {
-                let {x,y} = getPos(r,c);
-                if(Math.hypot(mx-x, (my-y)/0.75) < R) { 
-                    if(board[r][c] == 0) {
-                        board[r][c] = 1; render();
-                        if(checkWin(1)) {
-                            status.innerText = "🏆 YOU ARE THE CHAMPION! 🏆";
-                            status.style.color = "#fbbf24";
-                            gameOver = true; return;
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const { x, y } = getPos(r, c);
+                    if (Math.hypot(mx - x, my - y) < R) {
+                        if (board[r][c] === 0) {
+                            board[r][c] = 1;
+                            render();
+                            if (checkWin(1)) {
+                                status.innerText = "🏆 YOU WON! 🏆";
+                                gameOver = true;
+                                return;
+                            }
+                            setTimeout(aiMove, 500);
                         }
-                        status.innerText = "AI ANALYZING...";
-                        setTimeout(aiMove, 400);
                     }
                 }
             }
@@ -110,18 +110,22 @@
 
         function aiMove() {
             let empty = [];
-            for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) if(board[r][c]==0) empty.push({r,c});
-            if(empty.length > 0) {
-                // AI blocks your top-to-bottom path
-                empty.sort((a,b) => b.r - a.r); 
-                let m = empty[Math.floor(Math.random() * Math.min(empty.length, 3))];
-                board[m.r][m.c] = 2; render();
-                if(checkWin(2)) {
-                    status.innerText = "🤖 AI WON! NEXT TIME MAMA! 🤖";
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if (board[r][c] === 0) empty.push({ r, c });
+                }
+            }
+            if (empty.length > 0) {
+                let m = empty[Math.floor(Math.random() * empty.length)];
+                board[m.r][m.c] = 2;
+                render();
+                if (checkWin(2)) {
+                    status.innerText = "AI WON!";
                     gameOver = true;
-                } else { status.innerText = "YOUR TURN"; }
+                }
             }
         }
+
         render();
     </script>
 </body>
