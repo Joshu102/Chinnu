@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Hex 3D Pro | AI Championship</title>
+    <title>Hex 3D Pro | Backbencher Championship</title>
     <style>
         body { background: radial-gradient(circle, #020617, #0f172a); color: #fff; text-align: center; font-family: 'Segoe UI', sans-serif; overflow: hidden; margin: 0; }
-        #status { font-size: 35px; font-weight: 900; padding: 25px; color: #38bdf8; text-shadow: 0 0 20px #38bdf8; letter-spacing: 2px; }
-        canvas { cursor: pointer; filter: drop-shadow(0 0 50px rgba(0,0,0,0.9)); margin-top: -30px; }
+        #status { font-size: 32px; font-weight: 900; padding: 20px; color: #38bdf8; text-shadow: 0 0 20px #38bdf8; }
+        canvas { cursor: pointer; filter: drop-shadow(0 0 40px rgba(0,0,0,0.9)); margin-top: -20px; }
     </style>
 </head>
 <body>
@@ -16,19 +16,15 @@
         const canvas = document.getElementById('hexCanvas');
         const ctx = canvas.getContext('2d');
         const status = document.getElementById('status');
-        const SIZE = 7; 
-        const R = 42; // Hexagon Radius
-        const GAP = 8; // Proper Gap for 3D look
+        const SIZE = 7; const R = 42; const GAP = 10;
         let board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
         let gameOver = false;
 
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
         function getPos(r, c) {
-            // Slanted 3D Perspective Logic
-            const offsetX = window.innerWidth/2 - 350;
-            const x = offsetX + c * (R * 1.8 + GAP) + r * (R * 0.9 + GAP/2);
-            const y = 220 + r * (R * 1.4 + GAP/2);
+            const x = window.innerWidth/2 - 340 + c * (R * 1.8 + GAP) + r * (R * 0.9 + GAP/2);
+            const y = 240 + r * (R * 1.4 + GAP/2);
             return { x, y };
         }
 
@@ -37,15 +33,15 @@
             ctx.translate(x, y);
             ctx.scale(1, 0.75); // 3D Perspective Tilt
 
-            // 1. Bottom Shadow (Depth)
+            // 1. Shadow/Depth Layer
             ctx.beginPath();
             for(let i=0; i<6; i++) ctx.lineTo((R+2)*Math.cos(i*Math.PI/3), (R+2)*Math.sin(i*Math.PI/3)+15);
             ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fill();
 
-            // 2. Side Walls (3D Thickness)
+            // 2. Side Walls (The 3D Thickness)
             ctx.beginPath();
-            for(let i=0; i<6; i++) ctx.lineTo(R*Math.cos(i*Math.PI/3), R*Math.sin(i*Math.PI/3)+10);
-            ctx.fillStyle = p==1 ? "#990022" : (p==2 ? "#005588" : "#0f172a");
+            for(let i=0; i<6; i++) ctx.lineTo(R*Math.cos(i*Math.PI/3), R*Math.sin(i*Math.PI/3)+12);
+            ctx.fillStyle = p==1 ? "#880022" : (p==2 ? "#004488" : "#0f172a");
             ctx.fill();
 
             // 3. Top Face
@@ -55,12 +51,10 @@
             
             let color = p==1 ? "#ff0044" : (p==2 ? "#00d4ff" : "#1e293b");
             let grad = ctx.createRadialGradient(-10, -10, 5, 0, 0, R);
-            grad.addColorStop(0, color); 
-            grad.addColorStop(1, "#000");
+            grad.addColorStop(0, color); grad.addColorStop(1, "#000");
             
             ctx.fillStyle = grad;
-            ctx.shadowBlur = p!=0 ? 40 : 0; 
-            ctx.shadowColor = color;
+            ctx.shadowBlur = p!=0 ? 40 : 0; ctx.shadowColor = color;
             ctx.fill();
             ctx.strokeStyle = p!=0 ? color : "#334155";
             ctx.lineWidth = 3; ctx.stroke();
@@ -88,11 +82,8 @@
 
         function render() {
             ctx.clearRect(0,0,canvas.width,canvas.height);
-            for(let r = 0; r < SIZE; r++) {
-                for(let c = 0; c < SIZE; c++) {
-                    let {x,y} = getPos(r,c); 
-                    drawHex(x,y,board[r][c]);
-                }
+            for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) {
+                let {x,y} = getPos(r,c); drawHex(x,y,board[r][c]);
             }
         }
 
@@ -100,20 +91,18 @@
             if(gameOver) return;
             const rect = canvas.getBoundingClientRect();
             const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-            for(let r=0; r<SIZE; r++) {
-                for(let c=0; c<SIZE; c++) {
-                    let {x,y} = getPos(r,c);
-                    if(Math.hypot(mx-x, (my-y)/0.75) < R) { 
-                        if(board[r][c] == 0) {
-                            board[r][c] = 1; render();
-                            if(checkWin(1)) {
-                                status.innerText = "🏆 CHAMPION! RED WON! 🏆";
-                                status.style.color = "#fbbf24";
-                                gameOver = true; return;
-                            }
-                            status.innerText = "AI THINKING...";
-                            setTimeout(aiMove, 500);
+            for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) {
+                let {x,y} = getPos(r,c);
+                if(Math.hypot(mx-x, (my-y)/0.75) < R) { 
+                    if(board[r][c] == 0) {
+                        board[r][c] = 1; render();
+                        if(checkWin(1)) {
+                            status.innerText = "🏆 YOU ARE THE CHAMPION! 🏆";
+                            status.style.color = "#fbbf24";
+                            gameOver = true; return;
                         }
+                        status.innerText = "AI ANALYZING...";
+                        setTimeout(aiMove, 400);
                     }
                 }
             }
@@ -123,12 +112,12 @@
             let empty = [];
             for(let r=0; r<SIZE; r++) for(let c=0; c<SIZE; c++) if(board[r][c]==0) empty.push({r,c});
             if(empty.length > 0) {
-                // Defensive AI: Blocks your vertical progress
+                // AI blocks your top-to-bottom path
                 empty.sort((a,b) => b.r - a.r); 
                 let m = empty[Math.floor(Math.random() * Math.min(empty.length, 3))];
                 board[m.r][m.c] = 2; render();
                 if(checkWin(2)) {
-                    status.innerText = "🤖 AI WON! YOU BLOCKED! 🤖";
+                    status.innerText = "🤖 AI WON! NEXT TIME MAMA! 🤖";
                     gameOver = true;
                 } else { status.innerText = "YOUR TURN"; }
             }
