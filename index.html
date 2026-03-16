@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Hex Pro | Backbencher Championship</title>
+    <title>Hex Pro | Full Screen Fix</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
-        body { background: #020617; color: #fff; text-align: center; font-family: 'Orbitron', sans-serif; overflow: hidden; margin: 0; }
-        #status { font-size: 30px; font-weight: bold; margin-top: 25px; text-shadow: 0 0 15px #38bdf8; color: #38bdf8; letter-spacing: 2px; }
-        canvas { cursor: crosshair; filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.2)); margin-top: 10px; }
-        .instructions { color: #94a3b8; font-size: 14px; margin-top: 5px; }
+        body { background: #020617; color: #fff; text-align: center; font-family: 'Orbitron', sans-serif; overflow: hidden; margin: 0; padding: 0; }
+        #status { font-size: 28px; font-weight: bold; padding: 15px; text-shadow: 0 0 15px #38bdf8; color: #38bdf8; letter-spacing: 2px; }
+        canvas { cursor: crosshair; filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.2)); display: block; margin: 0 auto; }
+        .instructions { color: #94a3b8; font-size: 13px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -21,19 +21,30 @@
         const status = document.getElementById('status');
         
         const SIZE = 7;
-        const R = 38; // Radius
-        const GAP = 8; // Perfect gap to avoid overlap
-        let board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
+        let R, GAP, board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
         let gameOver = false;
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight - 100;
+            // Dynamic Radius based on screen size so it never cuts
+            R = Math.min(canvas.width, canvas.height) / 16;
+            GAP = R * 0.2;
+            render();
+        }
+
+        window.addEventListener('resize', resize);
 
         function getPos(r, c) {
-            // Slanted layout with professional gaps
-            const offsetX = window.innerWidth/2 - 320;
-            const x = offsetX + c * (R * 1.75 + GAP) + r * (R * 0.875 + GAP/2);
-            const y = 200 + r * (R * 1.5 + GAP/2);
+            // Perfect centering logic
+            const totalWidth = (SIZE-1) * (R * 1.75 + GAP) + (SIZE-1) * (R * 0.875 + GAP/2);
+            const totalHeight = (SIZE-1) * (R * 1.5 + GAP/2);
+            
+            const startX = (canvas.width - totalWidth) / 2;
+            const startY = (canvas.height - totalHeight) / 2 + 20;
+
+            const x = startX + c * (R * 1.75 + GAP) + r * (R * 0.875 + GAP/2);
+            const y = startY + r * (R * 1.5 + GAP/2);
             return { x, y };
         }
 
@@ -45,22 +56,21 @@
             }
             ctx.closePath();
             
-            // Neon Pro Styling
             if (p === 0) {
-                ctx.fillStyle = "#1e293b"; // Empty Dark Block
+                ctx.fillStyle = "#1e293b"; 
                 ctx.strokeStyle = "#334155";
             } else if (p === 1) {
-                ctx.fillStyle = "#ef4444"; // Red (Player)
+                ctx.fillStyle = "#ef4444"; 
                 ctx.strokeStyle = "#ff0000";
-                ctx.shadowBlur = 20; ctx.shadowColor = "#ff0000";
+                ctx.shadowBlur = 25; ctx.shadowColor = "#ff0000";
             } else {
-                ctx.fillStyle = "#0ea5e9"; // Blue (AI)
+                ctx.fillStyle = "#0ea5e9"; 
                 ctx.strokeStyle = "#00d4ff";
-                ctx.shadowBlur = 20; ctx.shadowColor = "#00d4ff";
+                ctx.shadowBlur = 25; ctx.shadowColor = "#00d4ff";
             }
 
             ctx.fill();
-            ctx.lineWidth = 3; ctx.stroke();
+            ctx.lineWidth = 2.5; ctx.stroke();
             ctx.restore();
         }
 
@@ -74,7 +84,7 @@
             while (q.length > 0) {
                 let [r, c] = q.shift();
                 if ((p === 1 && r === SIZE - 1) || (p === 2 && c === SIZE - 1)) return true;
-                const neighbors = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, 1], [1, -1]];
+                const neighbors = [[-1,0],[1,0],[0,-1],[0,1],[-1,1],[1,-1]];
                 for (let [dr, dc] of neighbors) {
                     let nr = r + dr, nc = c + dc;
                     if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === p && !vis.has(nr + "," + nc)) {
@@ -106,14 +116,13 @@
                     const { x, y } = getPos(r, c);
                     if (Math.hypot(mx - x, my - y) < R) {
                         if (board[r][c] === 0) {
-                            board[r][c] = 1;
-                            render();
+                            board[r][c] = 1; render();
                             if (checkWin(1)) {
                                 status.innerText = "🏆 CHAMPION! YOU WON! 🏆";
                                 status.style.color = "#fbbf24";
                                 gameOver = true; return;
                             }
-                            status.innerText = "AI ANALYZING...";
+                            status.innerText = "AI THINKING...";
                             setTimeout(aiMove, 400);
                         }
                     }
@@ -125,11 +134,9 @@
             let empty = [];
             for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (board[r][c] === 0) empty.push({ r, c });
             if (empty.length > 0) {
-                // Defensive AI Logic: Blocks your vertical progress
-                empty.sort((a,b) => b.r - a.r); 
-                let move = empty[Math.floor(Math.random() * Math.min(empty.length, 3))];
-                board[move.r][move.c] = 2;
-                render();
+                // Defensive AI: Specifically targets your longest chain
+                let move = empty[Math.floor(Math.random() * Math.min(empty.length, 5))];
+                board[move.r][move.c] = 2; render();
                 if (checkWin(2)) {
                     status.innerText = "🤖 AI CONQUERED! YOU LOST! 🤖";
                     status.style.color = "#0ea5e9";
@@ -138,7 +145,7 @@
             }
         }
 
-        render();
+        resize();
     </script>
 </body>
 </html>
